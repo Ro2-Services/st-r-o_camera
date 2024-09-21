@@ -1,0 +1,74 @@
+import cv2
+import numpy as np
+
+
+# Fonction pour détecter la pomme en utilisant la couleur (exemple pour une pomme rouge)
+def detect_apple(frame):
+    # Convertir l'image BGR en HSV
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Définir la plage de couleur rouge pour la détection
+    lower_red = np.array([0, 100, 100])
+    upper_red = np.array([10, 255, 255])
+
+    # Créer un masque pour la couleur rouge
+    mask = cv2.inRange(hsv, lower_red, upper_red)
+
+    # Utiliser un filtre pour éliminer le bruit
+    mask = cv2.erode(mask, None, iterations=2)
+    mask = cv2.dilate(mask, None, iterations=2)
+
+    # Trouver les contours dans l'image masquée
+    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    if contours:
+        # Prendre le plus grand contour qui devrait être la pomme
+        largest_contour = max(contours, key=cv2.contourArea)
+        ((x, y), radius) = cv2.minEnclosingCircle(largest_contour)
+
+        # Seuil pour déterminer si c'est bien une pomme
+        if radius > 10:  # Ajustez ce seuil selon les besoins
+            # Dessiner le cercle autour de la pomme détectée
+            cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 0), 2)
+            return frame, radius
+    return frame, None
+
+
+# Fonction pour calculer la distance en fonction de la taille apparente de la pomme
+def calculate_distance(known_diameter, perceived_radius, focal_length):
+    # Diamètre perçu en pixels
+    perceived_diameter = 2 * perceived_radius
+    # Estimation de la distance en utilisant la formule de distance
+    distance = (known_diameter * focal_length) / perceived_diameter
+    return distance
+
+
+# Paramètres connus
+known_diameter = 8.0  # Diamètre moyen de la pomme en cm
+focal_length = 700  # Longueur focale en pixels (dépend de votre caméra)
+
+# Initialiser la capture vidéo
+cap = cv2.VideoCapture(0)  # Utiliser 0 pour la webcam par défaut
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # Détecter la pomme dans le cadre
+    frame, radius = detect_apple(frame)
+
+    if radius is not None:
+        # Calculer la distance à la caméra si une pomme est détectée
+        distance = calculate_distance(known_diameter, radius, focal_length)
+        cv2.putText(frame, f"Distance: {distance:.2f} cm", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+    # Afficher le cadre
+    cv2.imshow("Pomme Detection", frame)
+
+    # Quitter avec 'q'
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
